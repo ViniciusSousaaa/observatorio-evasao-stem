@@ -1,0 +1,10 @@
+project_id  = "seu-projeto-gcp"
+region      = "southamerica-east1"
+environment = "dev"
+
+db_name = "observatorio_stem"
+db_user = "etl_user"
+
+deletion_protection = false
+
+authorized_networks = []
