@@ -14,11 +14,14 @@ source "$RAIZ/.env"
 set +a
 export PGCLIENTENCODING=UTF8
 
-echo ">> Criando tabelas (DDL)..."
+echo ">> 1/4 Criando tabelas e colunas (DDL)..."
 psql -v ON_ERROR_STOP=1 -f "$RAIZ/sql/01_ddl_star_schema.sql"
 
-echo ">> Executando carga de dados..."
+echo ">> 2/4 Executando carga de dados..."
 psql -v ON_ERROR_STOP=1 --single-transaction -f "$RAIZ/sql/02_carga_dados.sql"
 
-echo ">> Validando a carga:"
+echo ">> 3/4 Criando views de Regras de Negócio (ODS 5 e ODS 18)..."
+psql -v ON_ERROR_STOP=1 -f "$RAIZ/sql/04_regras_negocio_views.sql"
+
+echo ">> 4/4 Validando a carga e indicadores:"
 psql -v ON_ERROR_STOP=1 -f "$RAIZ/sql/03_validacao.sql"

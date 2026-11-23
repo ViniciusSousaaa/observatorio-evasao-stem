@@ -1,0 +1,116 @@
+name: Pipeline ETL Batch — Observatório Evasão STEM
+
+on:
+  # Velocidade (Batch agendado): executa no 1º dia de cada mês às 06:00 UTC
+  schedule:
+    - cron: "0 6 1 * *"
+  # Execução sob demanda com parâmetros configuráveis
+  workflow_dispatch:
+    inputs:
+      anos:
+        description: "Anos do Censo INEP separados por espaço (ex: 2022 2023 2024)"
+        required: true
+        default: "2024"
+        type: string
+      executar_carga_db:
+        description: "Executar carga no PostgreSQL na nuvem (requer Secrets configurados)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validacao-e-enriquecimento-ibge:
+    name: Validação do ETL e Ingestão API IBGE (JSON)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências do ETL e Dashboard
+        run: |
+          pip install --upgrade pip
+          pip install -r etl/requirements.txt
+          pip install -r dashboard/requirements.txt
+
+      - name: Verificar sintaxe dos scripts Python
+        run: |
+          python -m py_compile etl/python/enriquecer_ibge.py etl/python/tratar_base.py etl/python/gerar_sql.py dashboard/metrics.py dashboard/db.py dashboard/app.py
+
+      - name: Executar testes das Regras de Negócio (ODS 5 e ODS 18)
+        run: python -m unittest discover -s tests -v
+
+      - name: Consumir API de Localidades do IBGE (Dados Semi-estruturados JSON)
+        run: python etl/python/enriquecer_ibge.py
+
+      - name: Publicar artefato de metadados IBGE
+        uses: actions/upload-artifact@v4
+        with:
+          name: metadados-ibge-json
+          path: |
+            data/processed/dim_municipios_ibge.json
+            data/processed/ibge_municipios_raw.json
+          retention-days: 14
+
+  etl-e-carga-nuvem:
+    name: ETL Multi-ano INEP e Carga no PostgreSQL (Batch)
+    needs: validacao-e-enriquecimento-ibge
+    if: ${{ github.event_name == 'schedule' || inputs.executar_carga_db == true }}
+    runs-on: ubuntu-latest
+    env:
+      PGHOST: ${{ secrets.PGHOST }}
+      PGPORT: ${{ secrets.PGPORT }}
+      PGDATABASE: ${{ secrets.PGDATABASE }}
+      PGUSER: ${{ secrets.PGUSER }}
+      PGPASSWORD: ${{ secrets.PGPASSWORD }}
+      PGSSLMODE: require
+      PGCLIENTENCODING: UTF8
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências do ETL e cliente PostgreSQL
+        run: |
+          pip install -r etl/requirements.txt
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Baixar artefato IBGE da etapa anterior
+        uses: actions/download-artifact@v4
+        with:
+          name: metadados-ibge-json
+          path: data/processed
+
+      - name: Baixar microdados INEP e executar ETL (tratar_base.py)
+        run: |
+          ANOS="${{ inputs.anos || '2024' }}"
+          python etl/python/tratar_base.py --baixar --anos $ANOS
+
+      - name: Gerar script SQL de carga (gerar_sql.py)
+        run: python etl/python/gerar_sql.py
+
+      - name: Aplicar DDL, carga, views de regras de negócio e validação no banco
+        if: ${{ env.PGHOST != '' }}
+        run: |
+          psql -v ON_ERROR_STOP=1 -f sql/01_ddl_star_schema.sql
+          psql -v ON_ERROR_STOP=1 --single-transaction -f sql/02_carga_dados.sql
+          psql -v ON_ERROR_STOP=1 -f sql/04_regras_negocio_views.sql
+          psql -v ON_ERROR_STOP=1 -f sql/03_validacao.sql
+
+      - name: Publicar relatório JSON de qualidade (Veracidade)
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-qualidade-etl
+          path: data/processed/relatorio_qualidade_etl.json
+          retention-days: 30

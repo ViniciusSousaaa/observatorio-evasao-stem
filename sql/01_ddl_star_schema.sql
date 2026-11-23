@@ -17,8 +17,14 @@ CREATE TABLE IF NOT EXISTS dim_curso (
 CREATE TABLE IF NOT EXISTS dim_localidade (
     id_municipio    INTEGER      PRIMARY KEY,
     sigla_uf        CHAR(2)      NOT NULL,
-    regiao          VARCHAR(20)  NOT NULL
+    regiao          VARCHAR(20)  NOT NULL,
+    nome_municipio  VARCHAR(120),
+    mesorregiao     VARCHAR(120)
 );
+
+-- Garante compatibilidade idempotente em bancos já provisionados anteriormente
+ALTER TABLE dim_localidade ADD COLUMN IF NOT EXISTS nome_municipio VARCHAR(120);
+ALTER TABLE dim_localidade ADD COLUMN IF NOT EXISTS mesorregiao    VARCHAR(120);
 
 CREATE TABLE IF NOT EXISTS fato_metricas_evasao (
     id_fato          BIGSERIAL   PRIMARY KEY,

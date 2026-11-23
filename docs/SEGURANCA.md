@@ -6,7 +6,8 @@ A regra que seguimos no projeto é simples: nenhuma senha, chave ou token fica n
 
 O `.gitignore` bloqueia estes arquivos:
 
-- `.env`: guarda a senha do banco usada na carga.
+- `.env`: guarda a senha do banco usada na carga e na execução local do dashboard.
+- `dashboard/.streamlit/secrets.toml`: guarda credenciais do PostgreSQL para o Streamlit (no deploy online, são configuradas exclusivamente em *Settings > Secrets* do Streamlit Cloud).
 - `terraform.tfvars`: guarda o ID do projeto no Google Cloud.
 - `terraform.tfstate`: arquivo que o Terraform cria para registrar o que foi criado na nuvem. Ele guarda informações sensíveis em texto puro, por isso nunca é enviado.
 - Pasta `.terraform/` e o arquivo de plano `tfplan`.
