@@ -42,7 +42,7 @@ jobs:
 
       - name: Verificar sintaxe dos scripts Python
         run: |
-          python -m py_compile etl/python/enriquecer_ibge.py etl/python/tratar_base.py etl/python/gerar_sql.py dashboard/metrics.py dashboard/db.py dashboard/app.py
+          python -m py_compile etl/python/enriquecer_ibge.py etl/python/tratar_base.py etl/python/gerar_sql.py dashboard/metrics.py dashboard/db.py dashboard/ui_components.py dashboard/app.py
 
       - name: Executar testes das Regras de Negócio (ODS 5 e ODS 18)
         run: python -m unittest discover -s tests -v
